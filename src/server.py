@@ -208,31 +208,24 @@ def service_status(ctx: Context) -> dict:
     return _os_call((lambda: os_backend.service_status(conn)) if conn else None)
 
 
-def log_targets(ctx: Context, node: str = "") -> dict:
-    """List log targets. node='' → known node list + this (base) node's targets;
-    node='<name>' → that node's targets (proxied). Call with node='' first to see
-    which nodes are registered (LOG_NODES). OpenStack(it) host log files."""
-    return ops_backend.targets_for(node)
+def log_targets(ctx: Context) -> dict:
+    """List available Kolla log targets (per-service log dirs)."""
+    return ops_backend.targets()
 
 
 def log_tail(ctx: Context, target: str, lines: int = 300, grep: str = "",
-             node: str = "", since: str = "", until: str = "", last: str = "") -> dict:
+             since: str = "", until: str = "", last: str = "") -> dict:
     """한 target 로그를 시간창 안에서 구조화·시간순으로 반환. since/until(절대 '2026-06-25 14:30'
-    또는 '14:30') 또는 last('30m'/'2h'/'1d'); 모두 비면 최근 30분. grep=정규식 필터, node=다른 노드.
+    또는 '14:30') 또는 last('30m'/'2h'/'1d'); 모두 비면 최근 30분. grep=정규식 필터.
     결과의 cursor를 다음 호출 since로 주면 새 줄만(폴링).
-    target 예: 'kolla:nova', 'openstackit:servlet'."""
-    return ops_backend.tail_for(target, lines=lines, grep=grep, node=node,
-                                since=since, until=until, last=last)
+    target 예: 'kolla:nova'."""
+    return ops_backend.tail(target, lines=lines, grep=grep, since=since, until=until, last=last)
 
 
 def log_trace(ctx: Context, id: str, since: str = "", until: str = "", last: str = "",
-              nodes: str = "", targets: str = "") -> dict:
-    """한 요청/트레이스 ID(OpenStack 'req-...' 또는 OpenStackit trace uuid)가 거쳐간 로그를
-    여러 서비스·노드에서 모아 시간순으로 돌려준다. nodes=''(로컬)/'all'(LOG_NODES 전체)/'c1,c2'.
-    targets로 서비스 한정. 시간창은 since/until 또는 last(기본 30m). cursor로 폴링.
-    주의: OpenStack(req-)과 OpenStackit(trace=)는 ID 체계가 달라 같은 세계 안에서만 이어진다."""
-    return ops_backend.trace_for(id, since=since, until=until, last=last,
-                                 nodes=nodes, targets_csv=targets)
+              targets: str = "") -> dict:
+    """한 요청 ID(OpenStack 'req-...')가 거쳐간 로그를 여러 서비스에서 모아 시간순으로 반환."""
+    return ops_backend.trace(id, since=since, until=until, last=last, targets_csv=targets)
 
 
 add(whoami, name="whoami", domain="core", tier="read",

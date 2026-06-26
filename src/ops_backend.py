@@ -1,8 +1,7 @@
-"""Ops/observability — read OpenStackit & OpenStack (Kolla) logs from host log
-files mounted read-only into the server. No podman/privileged access needed.
+"""Ops/observability — read OpenStack (Kolla) logs from host log files mounted
+read-only into the server. No podman/privileged access needed.
 
-Mount on the host:  -v /var/log/openstackit:/var/log/openstackit:ro
-                    -v /var/log/kolla:/var/log/kolla:ro
+Mount on the host:  -v /var/log/kolla:/var/log/kolla:ro
 """
 from __future__ import annotations
 
@@ -12,85 +11,11 @@ import re
 import socket
 from datetime import datetime, timedelta
 
-import requests
-
-OPIT_LOG_DIR = os.environ.get("OPENSTACKIT_LOG_DIR", "/var/log/openstackit")
 KOLLA_LOG_DIR = os.environ.get("KOLLA_LOG_DIR", "/var/log/kolla")
 # Which node these logs come from. Logs are node-local (no central store), so in a
 # multi-node deploy each node runs its own observability slice; this label tells
 # the caller whose logs they're reading. Override with MCP_NODE_NAME, else hostname.
 NODE_NAME = os.environ.get("MCP_NODE_NAME") or socket.gethostname()
-
-
-def _parse_log_nodes(raw: str) -> dict:
-    """'c1=http://c1:8011 c2=http://c2:8011' → {'c1': 'http://c1:8011', ...}."""
-    out = {}
-    for kv in (raw or "").split():
-        if "=" in kv:
-            node, url = kv.split("=", 1)
-            node, url = node.strip(), url.strip().rstrip("/")
-            if node and url:
-                out[node] = url
-    return out
-
-
-# Other nodes' log endpoints (node → base url). The base/VIP MCP proxies log
-# requests here; empty in single-node deploys (local-only).
-_LOG_NODES = _parse_log_nodes(os.environ.get("LOG_NODES", ""))
-
-
-class LogNodeError(Exception):
-    """A registered log node could not be reached or returned a bad response.
-    Raised (not returned) so node failures surface through the same
-    {error:{type,message}} envelope as a bad target (ValueError) — clients
-    detect failure uniformly instead of one path raising and another returning
-    a success result with an `error` key."""
-
-
-def _unknown_node(node: str) -> "ValueError":
-    """Bad node name = caller mistake, same class as a bad target. English +
-    raised so the shape matches; carries the known list + where to look."""
-    known = ", ".join(sorted(_LOG_NODES)) or "none"
-    return ValueError(f"unknown node '{node}' (known: {known}; see log_targets)")
-
-
-def _proxy_get(base_url: str, path: str, params: dict | None = None) -> dict:
-    """GET base_url+path on a remote node's lightweight log EP. Returns the parsed
-    JSON dict; raises LogNodeError on timeout / non-200 / network error / non-JSON."""
-    try:
-        r = requests.get(base_url + path, params=params or {}, timeout=10)
-    except requests.RequestException as e:
-        raise LogNodeError(f"node unreachable: {base_url} ({e})") from e
-    if r.status_code != 200:
-        raise LogNodeError(f"node responded {r.status_code}: {base_url}{path} — {r.text[:300]}")
-    try:
-        return r.json()
-    except ValueError as e:
-        raise LogNodeError(f"node returned non-JSON: {base_url}{path}") from e
-
-
-def targets_for(node: str = "") -> dict:
-    """Node-aware log_targets. node='' → registry list + this node's local targets;
-    node=<name> → that node's targets via proxy. Unknown node / unreachable node
-    raise (ValueError / LogNodeError) — see module errors note."""
-    if not node:
-        return {"nodes": sorted(_LOG_NODES), "local": targets()}
-    if node not in _LOG_NODES:
-        raise _unknown_node(node)
-    return _proxy_get(_LOG_NODES[node], "/obs/targets")
-
-
-def tail_for(target: str, lines: int = 300, grep: str = "", node: str = "",
-             since: str = "", until: str = "", last: str = "") -> dict:
-    """Node-aware log_tail. node='' → local tail; node=<name> → proxy to that node.
-    Unknown node / unreachable node raise (ValueError / LogNodeError)."""
-    if not node:
-        return tail(target, lines=lines, grep=grep, since=since, until=until, last=last)
-    if node not in _LOG_NODES:
-        raise _unknown_node(node)
-    return _proxy_get(_LOG_NODES[node], "/obs/logs",
-                      {"target": target, "lines": lines, "grep": grep,
-                       "since": since, "until": until, "last": last})
 
 
 def _under(path: str, base: str) -> bool:
@@ -101,13 +26,9 @@ def _under(path: str, base: str) -> bool:
 
 
 def targets() -> dict:
-    """Available log targets: OpenStackit app logs (typically agent/batch/servlet —
-    servlet.log is the WAS app log) and Kolla per-service dirs
-    (nova/neutron/keystone/...). Names are derived from the actual *.log files present."""
-    out = {"openstackit": [], "kolla": []}
-    if os.path.isdir(OPIT_LOG_DIR):
-        out["openstackit"] = sorted(f[:-4] for f in os.listdir(OPIT_LOG_DIR)
-                                    if f.endswith(".log") and not f.endswith((".gz",)))
+    """Available Kolla per-service log dirs (nova/neutron/keystone/...),
+    derived from the directories present under KOLLA_LOG_DIR."""
+    out = {"kolla": []}
     if os.path.isdir(KOLLA_LOG_DIR):
         out["kolla"] = sorted(d for d in os.listdir(KOLLA_LOG_DIR)
                               if os.path.isdir(os.path.join(KOLLA_LOG_DIR, d)))
@@ -118,7 +39,6 @@ def targets() -> dict:
 _TS_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?)")
 _LEVEL_RE = re.compile(r"\b(TRACE|DEBUG|INFO|WARNING|WARN|ERROR|CRITICAL|FATAL)\b")
 _REQ_RE = re.compile(r"\breq-[0-9a-f][0-9a-f-]{7,}\b")
-_TRACE_RE = re.compile(r"trace=([0-9a-fA-F][0-9a-fA-F-]{7,})")
 _USER_RE = re.compile(r"\buser=([^\]\s]+)")
 # 타임스탬프 없는 줄이 실제 연속줄(스택 트레이스)인지 판별.
 # 선행 공백, Java 스택 프레임, Python Traceback 패턴 등.
@@ -134,12 +54,11 @@ def _parse_line(raw: str, source: str) -> dict:
     mts = _TS_RE.match(raw)
     mlv = _LEVEL_RE.search(raw)
     mrq = _REQ_RE.search(raw)
-    mtr = _TRACE_RE.search(raw)
     mus = _USER_RE.search(raw)
     user = mus.group(1) if mus else None
     if user == "-":
         user = None
-    ident = mrq.group(0) if mrq else (mtr.group(1) if (mtr and mtr.group(1) != "-") else None)
+    ident = mrq.group(0) if mrq else None
     return {"ts": mts.group(1) if mts else None,
             "level": mlv.group(1) if mlv else None,
             "id": ident, "user": user, "source": source, "msg": raw}
@@ -182,15 +101,12 @@ def _time_window(since: str = "", until: str = "", last: str = "") -> tuple[str,
 
 
 def _resolve(target: str) -> list[str]:
-    """'openstackit:batch' → [.../batch.log]; 'kolla:nova' → all *.log in nova/;
-    'kolla:nova/nova-api.log' → that file. Paths are confined to the log dirs."""
+    """'kolla:nova' → all *.log in nova/; 'kolla:nova/nova-api.log' → that file.
+    Paths are confined to KOLLA_LOG_DIR."""
     if ":" not in target:
-        raise ValueError("target must be 'openstackit:<name>' or 'kolla:<service>[/<file>]'")
+        raise ValueError("target must be 'kolla:<service>[/<file>]'")
     src, rest = target.split(":", 1)
     rest = rest.strip("/")
-    if src == "openstackit":
-        fp = os.path.join(OPIT_LOG_DIR, rest if rest.endswith(".log") else rest + ".log")
-        return [fp] if os.path.isfile(fp) and _under(fp, OPIT_LOG_DIR) else []
     if src == "kolla":
         base = os.path.join(KOLLA_LOG_DIR, rest)
         if os.path.isfile(base) and _under(base, KOLLA_LOG_DIR):
@@ -198,7 +114,7 @@ def _resolve(target: str) -> list[str]:
         if os.path.isdir(base) and _under(base, KOLLA_LOG_DIR):
             return sorted(os.path.join(base, f) for f in os.listdir(base) if f.endswith(".log"))
         return []
-    raise ValueError("source must be 'openstackit' or 'kolla'")
+    raise ValueError("source must be 'kolla'")
 
 
 def _in_window(ts: "str|None", start: str, end: str) -> bool:
@@ -289,49 +205,12 @@ def tail(target: str, lines: int = 300, grep: str = "",
 
 def _all_target_names() -> list:
     t = targets()
-    names = [f"openstackit:{n}" for n in t.get("openstackit", [])]
-    names += [f"kolla:{s}" for s in t.get("kolla", [])]
-    return names
-
-
-def trace_for(id_sub: str, since: str = "", until: str = "", last: str = "",
-              nodes: str = "", targets_csv: str = "") -> dict:
-    """id_sub를 로컬+원격 노드에서 팬아웃 검색, 타임스탬프 기준으로 머지.
-    nodes: ''=로컬만 · 'all'=_LOG_NODES 전체 · 'c1,c2'=지정.
-    각 노드는 per-node status(ok/unknown/unreachable:…)로 보고, 전체 실패 없음."""
-    local = trace(id_sub, since=since, until=until, last=last, targets_csv=targets_csv)
-    window = local["window"]
-    statuses = {NODE_NAME: "ok"}
-    recs = list(local["records"])
-    if nodes == "all":
-        sel = list(_LOG_NODES)
-    elif nodes:
-        sel = [n.strip() for n in nodes.split(",") if n.strip()]
-    else:
-        sel = []
-    for n in sel:
-        if n not in _LOG_NODES:
-            statuses[n] = "unknown"
-            continue
-        try:
-            data = _proxy_get(_LOG_NODES[n], "/obs/trace",
-                              {"id": id_sub, "since": window["since"], "until": window["until"],
-                               "targets": targets_csv})
-            node_recs = data.get("records", [])
-            for r in node_recs:
-                r["node"] = n
-            recs += node_recs
-            statuses[n] = "ok"
-        except Exception as e:                       # 도달 불가 노드는 표시만, 전체는 계속
-            statuses[n] = f"unreachable: {type(e).__name__}"
-    recs, truncated, cursor = _merge_cap(recs)
-    return {"id": id_sub, "window": window, "nodes": statuses,
-            "returned": len(recs), "truncated": truncated, "cursor": cursor, "records": recs}
+    return [f"kolla:{s}" for s in t.get("kolla", [])]
 
 
 def trace(id_sub: str, since: str = "", until: str = "", last: str = "",
           targets_csv: str = "") -> dict:
-    """id_sub(req-... 또는 trace uuid)를 이 노드의 전(또는 지정) 서비스 로그에서 시간창 안에 모은다."""
+    """id_sub(req-...)를 이 노드의 전(또는 지정) Kolla 서비스 로그에서 시간창 안에 모은다."""
     if not id_sub or not id_sub.strip():
         raise ValueError("trace id가 비었습니다")
     start, end = _time_window(since, until, last)
