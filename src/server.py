@@ -18,7 +18,6 @@ import typing
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.shared.exceptions import UrlElicitationRequiredError
 
 import os_backend
 import ops_backend
@@ -224,7 +223,8 @@ def log_tail(ctx: Context, target: str, lines: int = 300, grep: str = "",
 
 def log_trace(ctx: Context, id: str, since: str = "", until: str = "", last: str = "",
               targets: str = "") -> dict:
-    """한 요청 ID(OpenStack 'req-...')가 거쳐간 로그를 여러 서비스에서 모아 시간순으로 반환."""
+    """한 요청 ID(OpenStack 'req-...')가 거쳐간 로그를 여러 서비스에서 모아 시간순으로 반환.
+    targets: 'kolla:nova,kolla:neutron' 형식의 쉼표 구분 목록으로 검색 범위를 제한 (기본값: 전체)."""
     return ops_backend.trace(id, since=since, until=until, last=last, targets_csv=targets)
 
 
@@ -269,7 +269,7 @@ RESOURCES = [
          os_delete=lambda c, i: c.compute.delete_keypair(i, ignore_missing=False)),
     dict(name="hypervisor", fields=["id", "name", "status", "state", "hypervisor_type", "hypervisor_hostname"],
          os_list=_plain(lambda c: c.compute.hypervisors(details=True))),
-    dict(name="availability_zone", fields=["name", "state", "zoneName", "zoneState"],
+    dict(name="availability_zone", fields=["name", "state"],
          os_list=_plain(lambda c: c.compute.availability_zones())),
     dict(name="network", fields=["id", "name", "status", "is_router_external"],
          os_list=_neutron("networks"),
@@ -357,20 +357,20 @@ RESOURCES = [
          os_update=lambda c, i, b: c.load_balancer.update_pool(i, **b),
          update_fields=["name", "description"],
          os_delete=lambda c, i: c.load_balancer.delete_pool(i, ignore_missing=False)),
-    dict(name="role", fields=["id", "name", "code", "alias", "domainId", "enabled"],
+    dict(name="role", fields=["id", "name", "domain_id", "description"],
          os_list=_plain(lambda c: c.identity.roles()),
          os_delete=lambda c, i: c.identity.delete_role(i, ignore_missing=False)),
     # --- TIER 1: Identity ---
-    dict(name="user", fields=["userId", "domainId", "state", "alias", "email", "organization",
-                              "id", "name", "enabled", "default_project_id"],
+    dict(name="user", fields=["id", "name", "email", "is_enabled", "domain_id"],
          os_list=_plain(lambda c: c.identity.users()),
          os_show=lambda c, i: c.identity.get_user(i),
          os_update=lambda c, i, b: c.identity.update_user(i, **b),
          update_fields=["name", "email"],
          os_delete=lambda c, i: c.identity.delete_user(i, ignore_missing=False)),
-    # role_assignment: admin-scoped, no show endpoint
+    # role_assignment: admin-scoped, no show endpoint. SDK emits nested dicts
+    # (role/scope/user/group) with no flat per-field attributes; use those directly.
     dict(name="role_assignment",
-         fields=["userId", "roleCode", "alias", "projectId", "domainId"],
+         fields=["role", "scope", "user", "group"],
          os_list=_plain(lambda c: c.identity.role_assignments())),
     # application_credential: scoped to current user on SDK side
     dict(name="application_credential",
@@ -651,17 +651,15 @@ def _error_json(e: Exception) -> str:
 
 
 def _wrap_tool_errors(fn):
-    """Convert tool exceptions into a structured JSON message (see _error_json).
-    UrlElicitationRequiredError is re-raised untouched — it is the elicitation
-    control-flow signal for the create_*_form tools, not an error. CancelledError
-    is a BaseException and is never caught here."""
+    """Wrap a tool function so that any Exception is converted into the
+    structured ``{"error": {"type", "message", "http_status?"}}`` JSON message
+    (via _error_json) raised as RuntimeError. CancelledError is a BaseException
+    and is never caught here."""
     if inspect.iscoroutinefunction(fn):
         @functools.wraps(fn)
         async def aw(*a, **k):
             try:
                 return await fn(*a, **k)
-            except UrlElicitationRequiredError:
-                raise
             except Exception as e:
                 raise RuntimeError(_error_json(e)) from e
         return aw
@@ -670,8 +668,6 @@ def _wrap_tool_errors(fn):
     def w(*a, **k):
         try:
             return fn(*a, **k)
-        except UrlElicitationRequiredError:
-            raise
         except Exception as e:
             raise RuntimeError(_error_json(e)) from e
     return w

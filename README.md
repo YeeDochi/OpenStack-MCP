@@ -100,7 +100,7 @@ Claude Desktop config (`claude_desktop_config.json`):
 Or via the CLI:
 
 ```bash
-claude mcp add openstack -- /path/to/.venv/bin/python /path/to/openstack-mcp/src/server.py
+claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to/openstack-mcp/src/server.py
 ```
 
 ### HTTP mode (multi-user / container)
@@ -155,7 +155,7 @@ podman run --rm -p 8001:8001 \
 | `OSMCP_TIERS` | all | Comma-separated subset: `read,write,maintain` |
 | `KOLLA_LOG_DIR` | `/var/log/kolla` | Root of Kolla service log directories |
 | `MCP_NODE_NAME` | hostname | Label identifying which node's logs are being served |
-| `MCP_ALLOWED_HOST_NAMES` | `localhost,127.0.0.1` | Comma-separated hostnames for HTTP host-header allowlist |
+| `MCP_ALLOWED_HOST_NAMES` | `localhost,127.0.0.1` | Comma-separated hostnames; each is suffixed with `:<MCP_PORT>` to form the Host-header allowlist. Set `MCP_ALLOWED_HOSTS` to override the full list directly. |
 
 ---
 
