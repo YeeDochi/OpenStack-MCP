@@ -24,7 +24,7 @@ import os_backend
 import ops_backend
 from errors import OpenStackError
 
-OS_AUTH_URL = os.environ.get("OS_AUTH_URL", "http://192.168.140.14:5000/v3")
+OS_AUTH_URL = os.environ.get("OS_AUTH_URL", "http://127.0.0.1:5000/v3")
 
 # Port is the single source of truth (MCP_PORT, default 8001; --port overrides at
 # launch). The Host-header allowlist is DERIVED from the port so changing the port
@@ -32,7 +32,7 @@ OS_AUTH_URL = os.environ.get("OS_AUTH_URL", "http://192.168.140.14:5000/v3")
 # the host list, or MCP_ALLOWED_HOST_NAMES to add hostnames beyond the defaults).
 MCP_PORT = int(os.environ.get("MCP_PORT", "8001"))
 _HOST_NAMES = [h.strip() for h in os.environ.get(
-    "MCP_ALLOWED_HOST_NAMES", "192.168.140.14,localhost,127.0.0.1").split(",") if h.strip()]
+    "MCP_ALLOWED_HOST_NAMES", "localhost,127.0.0.1").split(",") if h.strip()]
 _DEFAULT_HOSTS = ",".join(f"{h}:{MCP_PORT}" for h in _HOST_NAMES)
 _HOSTS = os.environ.get("MCP_ALLOWED_HOSTS", _DEFAULT_HOSTS)
 
@@ -85,7 +85,7 @@ _DROP_KEYS = {"location", "links", "_csrf", "cpuinfo"}
 
 def _full(item):
     """Return ALL meaningful fields of an item (openstacksdk object → to_dict, or
-    OpenStackit JSON dict as-is), dropping empty/null values and a little noise.
+    OpenStack SDK object or plain dict), dropping empty/null values and a little noise.
     Maximizes the data shown rather than picking a fixed handful of fields."""
     try:
         d = item if isinstance(item, dict) else item.to_dict()
@@ -456,12 +456,6 @@ RESOURCES = [
          fields=["namespace", "display_name", "description", "visibility", "protected", "owner"],
          os_list=_plain(lambda c: c.image.metadef_namespaces()),
          os_show=lambda c, i: c.image.get_metadef_namespace(i)),
-    # --- compute: GPU instances ---
-    # OpenStack lists GPU servers by filtering on server metadata
-    # "opit:device_type" == "gpu" (openstacksdk exposes it under Server.metadata).
-    dict(name="gpu_server", domain="compute", tier="read", fields=["id", "name", "status"],
-         os_list=lambda c, a: [s for s in c.compute.servers(details=True, all_projects=a)
-                               if str((s.metadata or {}).get("opit:device_type", "")).lower() == "gpu"]),
 ]
 
 
@@ -545,12 +539,12 @@ RESOURCE_DOMAIN = {
     "network": "network", "subnet": "network", "router": "network",
     "port": "network", "security_group": "network",
     "security_group_rule": "network", "floating_ip": "network",
-    "qos_policy": "network", "agent": "network", "rbac_policy": "network",
+    "agent": "network", "rbac_policy": "network",
     "network_ip_availability": "network",
     "load_balancer": "lbaas", "listener": "lbaas", "pool": "lbaas",
     "health_monitor": "lbaas", "l7_policy": "lbaas", "lb_flavor": "lbaas",
     "volume": "storage", "volume_snapshot": "storage", "volume_type": "storage",
-    "volume_backup": "storage", "qos_spec": "storage", "volume_group": "storage",
+    "volume_backup": "storage", "volume_group": "storage",
     "volume_group_type": "storage", "volume_group_snapshot": "storage",
     "volume_service": "storage",
     "image": "image", "metadef_namespace": "image",
@@ -568,7 +562,7 @@ _ALL_PROJECTS_OK = {
     "security_group_rule", "floating_ip", "volume", "volume_snapshot",
     "volume_backup", "image", "load_balancer", "listener", "pool",
     "health_monitor", "l7_policy", "rbac_policy", "volume_group",
-    "volume_group_snapshot", "gpu_server",
+    "volume_group_snapshot",
 }
 
 for _spec in RESOURCES:
@@ -703,8 +697,8 @@ def make_mcp(name, domains, tiers):
 
 
 # Which (domain, tier) slices this process serves (env-selectable; default = all).
-ACTIVE_DOMAINS = _env_set("OPIT_MCP_DOMAINS", DOMAINS)
-ACTIVE_TIERS = _env_set("OPIT_MCP_TIERS", TIERS)
+ACTIVE_DOMAINS = _env_set("OSMCP_DOMAINS", DOMAINS)
+ACTIVE_TIERS = _env_set("OSMCP_TIERS", TIERS)
 
 # Combined instance: everything active. Used for stdio + in-process verification +
 # the backward-compatible root /mcp mount.
@@ -719,8 +713,8 @@ MOUNTS = {d: make_mcp(f"openstack-{d}", {d}, ACTIVE_TIERS)
 
 def build_http_app():
     """Parent ASGI app: each active domain served at /<domain>/mcp. The combined
-    92-tool instance is NOT exposed over HTTP by default (clients use the per-domain
-    endpoints); set OPIT_MCP_COMBINED=1 to also mount it at /mcp. Combines all
+    instance is NOT exposed over HTTP by default (clients use the per-domain
+    endpoints); set OSMCP_COMBINED=1 to also mount it at /mcp. Combines all
     mounted instances' session-manager lifespans."""
     import contextlib
     from starlette.applications import Starlette
@@ -763,7 +757,7 @@ def build_http_app():
               Route("/obs/trace", _obs_trace)] + \
              [Mount(f"/{d}", app=a) for d, a in apps.items()]
 
-    combined = os.environ.get("OPIT_MCP_COMBINED", "").lower() in ("1", "true", "yes")
+    combined = os.environ.get("OSMCP_COMBINED", "").lower() in ("1", "true", "yes")
     if combined:
         instances.append(mcp)
         routes.append(Mount("/", app=mcp.streamable_http_app()))   # /mcp → combined
@@ -787,7 +781,7 @@ if __name__ == "__main__":
     args = p.parse_args()
     if args.transport == "http":
         import uvicorn
-        _combined = os.environ.get("OPIT_MCP_COMBINED", "").lower() in ("1", "true", "yes")
+        _combined = os.environ.get("OSMCP_COMBINED", "").lower() in ("1", "true", "yes")
         _paths = ["/" + d + "/mcp" for d in sorted(MOUNTS)] + (["/mcp (combined)"] if _combined else [])
         print(f"mounting domains: {sorted(MOUNTS)} | tiers: {sorted(ACTIVE_TIERS)} | paths: {_paths}")
         uvicorn.run(build_http_app(), host=args.host, port=args.port, log_level="info")

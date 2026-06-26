@@ -1,8 +1,8 @@
-"""Box A — OpenStack backend (always shipped).
+"""OpenStack backend.
 
 OpenStackProvider (openstacksdk connection from a Keystone application
 credential) plus the OpenStack implementation of each operation. These are plain
-functions taking a connection; server.py wires them into MCP tools via the router.
+functions taking a connection; server.py wires them into MCP tools.
 """
 from __future__ import annotations
 

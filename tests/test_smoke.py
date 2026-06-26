@@ -1,4 +1,16 @@
+import pathlib, re
+
 import server
+
+def test_no_forbidden_tokens():
+    root = pathlib.Path(__file__).resolve().parent.parent
+    forbidden = re.compile(r"openstackit|opit|192\.168\.140\.14|innogrid|x-opit", re.I)
+    bad = []
+    for p in list(root.glob("src/*.py")) + list((root).glob("*.md")):
+        for i, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if forbidden.search(line):
+                bad.append(f"{p.name}:{i}: {line.strip()[:80]}")
+    assert not bad, "forbidden tokens:\n" + "\n".join(bad)
 
 def test_registry_nonempty():
     names = {t["name"] for t in server._REGISTRY}
@@ -15,7 +27,6 @@ EXPECTED_PRESENT = {
     "server_start", "server_stop", "network_list", "subnet_list", "router_list",
     "volume_list", "image_list", "project_list", "user_list", "load_balancer_list",
     "flavor_list", "capacity_stats", "service_status", "log_tail", "log_targets",
-    "gpu_server_list",
 }
 EXPECTED_ABSENT = {
     "agent_mode", "logout", "switch_project", "create_user", "create_user_form",
