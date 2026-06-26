@@ -1,0 +1,4 @@
+mcp[cli]
+openstacksdk
+cryptography
+requests
