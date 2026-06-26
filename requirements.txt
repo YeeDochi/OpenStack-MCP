@@ -1,4 +1,7 @@
+# Runtime dependencies — exact list matches imports in src/*.py
+# starlette and uvicorn are pulled in transitively by mcp, but listed
+# explicitly because server.py imports them directly for HTTP transport.
 mcp[cli]
 openstacksdk
-cryptography
-requests
+uvicorn
+starlette
