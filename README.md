@@ -63,8 +63,8 @@ Each domain is an independent FastMCP instance. A shared process exposes all mou
 ### Install
 
 ```bash
-git clone https://github.com/YeeDochi/Openstack-MCP.git
-cd Openstack-MCP
+git clone https://github.com/YeeDochi/OpenStack-MCP.git
+cd OpenStack-MCP
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```

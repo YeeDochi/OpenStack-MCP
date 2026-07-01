@@ -63,8 +63,8 @@ LLM 클라이언트 (Claude / 임의의 MCP 호스트)
 ### 설치
 
 ```bash
-git clone https://github.com/YeeDochi/Openstack-MCP.git
-cd Openstack-MCP
+git clone https://github.com/YeeDochi/OpenStack-MCP.git
+cd OpenStack-MCP
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
