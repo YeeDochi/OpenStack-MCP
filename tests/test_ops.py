@@ -8,8 +8,8 @@ def test_targets_kolla_only(tmp_path, monkeypatch):
     (kolla / "neutron").mkdir()
     monkeypatch.setattr(ops_backend, "KOLLA_LOG_DIR", str(kolla))
     out = ops_backend.targets()
+    assert set(out.keys()) == {"kolla", "node"}
     assert set(out["kolla"]) == {"nova", "neutron"}
-    assert "openstackit" not in out
 
 
 def test_parse_line_extracts_req_id():

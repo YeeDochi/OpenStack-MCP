@@ -344,7 +344,7 @@ Any OpenStack service supported by openstacksdk can be wired in this way with a 
 pytest -q
 ```
 
-The smoke suite verifies: no forbidden tokens in `src/*.py` or root `*.md`, registry is non-empty and contains expected tools, no legacy router module present.
+The smoke suite verifies: the tool registry is non-empty and contains the expected OpenStack tools (and excludes non-OpenStack ones), no legacy router module is present, and the Kolla log backend resolves targets/parses request IDs correctly.
 
 ---
 
