@@ -1,5 +1,7 @@
 # openstack-mcp
 
+**English** | [한국어](README.ko.md)
+
 A Model Context Protocol (MCP) server for OpenStack — 123 tools across 7 domains, built on [openstacksdk](https://docs.openstack.org/openstacksdk/), with stateless per-caller header auth, a declarative RESOURCES registry, and Kolla log observability.
 
 ---
@@ -61,8 +63,8 @@ Each domain is an independent FastMCP instance. A shared process exposes all mou
 ### Install
 
 ```bash
-git clone https://github.com/your-user/openstack-mcp.git
-cd openstack-mcp
+git clone https://github.com/YeeDochi/Openstack-MCP.git
+cd Openstack-MCP
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
