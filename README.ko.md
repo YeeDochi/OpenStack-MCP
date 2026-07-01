@@ -1,4 +1,4 @@
-# openstack-mcp
+# OpenStack-MCP
 
 [English](README.md) | **한국어**
 
@@ -88,7 +88,7 @@ Claude Desktop 설정 (`claude_desktop_config.json`):
   "mcpServers": {
     "openstack": {
       "command": "/path/to/.venv/bin/python",
-      "args": ["/path/to/openstack-mcp/src/server.py", "--transport", "stdio"],
+      "args": ["/path/to/OpenStack-MCP/src/server.py", "--transport", "stdio"],
       "env": {
         "OS_AUTH_URL": "https://keystone.example.com:5000/v3",
         "OS_APPLICATION_CREDENTIAL_ID": "...",
@@ -102,7 +102,7 @@ Claude Desktop 설정 (`claude_desktop_config.json`):
 또는 CLI로:
 
 ```bash
-claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to/openstack-mcp/src/server.py
+claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to/OpenStack-MCP/src/server.py
 ```
 
 ### HTTP 모드 (다중 사용자 / 컨테이너)
