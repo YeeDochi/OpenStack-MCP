@@ -17,7 +17,7 @@ from core.registry import DOMAINS, TIERS
 
 MCP_PORT = int(os.environ.get("MCP_PORT", "8001"))
 _HOST_NAMES = [h.strip() for h in os.environ.get(
-    "MCP_ALLOWED_HOST_NAMES", "localhost,127.0.0.1").split(",") if h.strip()]
+    "MCP_ALLOWED_HOST_NAMES", "127.0.0.1,localhost,127.0.0.1").split(",") if h.strip()]
 _DEFAULT_HOSTS = ",".join(f"{h}:{MCP_PORT}" for h in _HOST_NAMES)
 _HOSTS = os.environ.get("MCP_ALLOWED_HOSTS", _DEFAULT_HOSTS)
 _TS = TransportSecuritySettings(
