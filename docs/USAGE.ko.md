@@ -32,7 +32,7 @@ export OS_AUTH_URL=https://keystone.example.com:5000/v3
 export OS_APPLICATION_CREDENTIAL_ID=<your-app-cred-id>
 export OS_APPLICATION_CREDENTIAL_SECRET=<your-app-cred-secret>
 
-python src/server.py --transport stdio
+PYTHONPATH=src python -m core.server --transport stdio
 ```
 
 Claude Desktop 설정 (`claude_desktop_config.json`):
@@ -42,8 +42,10 @@ Claude Desktop 설정 (`claude_desktop_config.json`):
   "mcpServers": {
     "openstack": {
       "command": "/path/to/.venv/bin/python",
-      "args": ["/path/to/OpenStack-MCP/src/server.py", "--transport", "stdio"],
+      "args": ["-m", "core.server", "--transport", "stdio"],
+      "cwd": "/path/to/OpenStack-MCP",
       "env": {
+        "PYTHONPATH": "/path/to/OpenStack-MCP/src",
         "OS_AUTH_URL": "https://keystone.example.com:5000/v3",
         "OS_APPLICATION_CREDENTIAL_ID": "...",
         "OS_APPLICATION_CREDENTIAL_SECRET": "..."
@@ -56,7 +58,7 @@ Claude Desktop 설정 (`claude_desktop_config.json`):
 또는 CLI로:
 
 ```bash
-claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to/OpenStack-MCP/src/server.py
+claude mcp add --transport stdio openstack --env PYTHONPATH=/path/to/OpenStack-MCP/src -- /path/to/.venv/bin/python -m core.server
 ```
 
 ---
@@ -68,7 +70,7 @@ claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to
 cp config.env.example config.env
 # OS_AUTH_URL, MCP_PORT, KOLLA_LOG_DIR 등을 설정
 
-python src/server.py --transport http --host 0.0.0.0 --port 8001
+PYTHONPATH=src python -m core.server --transport http --host 0.0.0.0 --port 8001
 ```
 
 도메인별 엔드포인트:
@@ -109,8 +111,8 @@ podman run --rm -p 8001:8001 \
 |---|---|---|
 | `MCP_PORT` | `8001` | HTTP 수신 포트 |
 | `OS_AUTH_URL` | `http://127.0.0.1:5000/v3` | Keystone 엔드포인트 (서버 기본값; 호출자별 재정의 가능) |
-| `OSMCP_DOMAINS` | 전체 | 쉼표 구분 부분집합: `compute,network,lbaas,storage,image,identity,observability` |
-| `OSMCP_TIERS` | 전체 | 쉼표 구분 부분집합: `read,write,maintain` |
+| `MCP_DOMAINS` | 전체 | 쉼표 구분 부분집합: `compute,network,lbaas,storage,image,identity,observability` |
+| `MCP_TIERS` | 전체 | 쉼표 구분 부분집합: `read,write,maintain` |
 | `KOLLA_LOG_DIR` | `/var/log/kolla` | Kolla 서비스 로그 디렉터리 루트 |
 | `MCP_NODE_NAME` | 호스트명 | 어느 노드의 로그를 서빙 중인지 식별하는 라벨 |
 | `MCP_ALLOWED_HOST_NAMES` | `localhost,127.0.0.1` | 쉼표 구분 호스트명; 각 항목에 `:<MCP_PORT>`가 붙어 Host 헤더 허용 목록을 구성. 전체 목록을 직접 지정하려면 `MCP_ALLOWED_HOSTS`를 설정 |

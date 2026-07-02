@@ -13,21 +13,26 @@ LLM client (Claude / any MCP host)
         │  MCP protocol (stdio or HTTP/SSE)
         ▼
 ┌─────────────────────────────────────────────────────┐
-│                  server.py                          │
-│  RESOURCES table → auto-generated list/show/        │
-│  update/delete tools  +  hand-written specials      │
+│              src/core/  (package)                   │
 │                                                     │
-│  _os_conn(ctx) ──► os_backend.py                   │
-│  (per-caller creds)   openstacksdk Connection       │
-│                       (Keystone app credential)     │
+│  server.py     → CORE_SPECS table → auto-generated  │
+│                  list/show/update/delete tools      │
+│                  + hand-written specials            │
+│  registry.py   → domain/tier tool registry          │
+│  assembly.py   → per-domain FastMCP instances,      │
+│                  ASGI app, shared conventions text  │
+│                                                     │
+│  context.os_conn(ctx) ──► os_backend.py            │
+│  (per-caller creds)        openstacksdk Connection  │
+│                            (Keystone app credential)│
 │                                ▼                    │
 │                       OpenStack APIs                │
 │                       Nova · Neutron · Cinder       │
 │                       Glance · Keystone · Octavia   │
 │                       Placement                     │
 │                                                     │
-│  ops_backend.py ──► Kolla log files (read-only)    │
-│  (observability)      /var/log/kolla/*              │
+│  observability.py ──► Kolla log files (read-only)  │
+│                          /var/log/kolla/*           │
 └─────────────────────────────────────────────────────┘
 
 Per-domain HTTP mounts (stateful sessions for elicitation):
@@ -36,13 +41,13 @@ Per-domain HTTP mounts (stateful sessions for elicitation):
   /observability/mcp
 ```
 
-Each domain is an independent FastMCP instance. A shared process exposes all mounts; `OSMCP_DOMAINS` and `OSMCP_TIERS` narrow which tools are active.
+Each domain is an independent FastMCP instance. A shared process exposes all mounts; `MCP_DOMAINS` and `MCP_TIERS` narrow which tools are active.
 
 ---
 
 ## Features
 
-- **Declarative registry** — `RESOURCES` table + `_make_list/_make_show/_make_update/_make_delete` generators; adding a new resource is one dict entry.
+- **Declarative registry** — `CORE_SPECS` table + `make_list/make_show/make_update/make_delete` generators; adding a new resource is one dict entry.
 - **Stateless per-caller auth** — credentials are read from request headers on every call (HTTP) or from env vars (stdio). The server stores nothing; multiple callers with different credentials share one process safely.
 - **Structured error envelope** — all tool errors surface as `Error executing tool <name>: {"error":{"type","message","http_status?}}`. Parse from the first `{`.
 - **Delete confirmation** — `*_delete` tools use MCP elicitation to require an explicit human `"delete"` choice before executing. Irreversible operations cannot be triggered by an LLM alone.
@@ -74,9 +79,9 @@ Then see [Usage](docs/USAGE.md) to run in stdio or HTTP mode.
 
 Create tools is intentionally not implemented — it is the primary extension point. To add a create tool or a new resource type:
 
-1. Add a function in `src/server.py` or `src/os_backend.py` using openstacksdk.
-2. Register it with `add(fn, name="...", domain="...", tier="write")`.
-3. For a full CRUD resource, add one dict to `RESOURCES` and a `RESOURCE_DOMAIN` mapping entry; `_make_list/_make_show/_make_update/_make_delete` generate the tools automatically.
+1. Add a function in `src/core/server.py` or `src/core/os_backend.py` using openstacksdk.
+2. Register it with `reg.add(fn, name="...", domain="...", tier="write")`.
+3. For a full CRUD resource, add one dict to `CORE_SPECS` (in `src/core/specs.py`); `register_resources` in `registry.py` generates the list/show/update/delete tools automatically from `os_list`/`os_show`/`os_update`/`os_delete`/`update_fields`.
 
 Any OpenStack service supported by openstacksdk can be wired in this way with a handful of lines.
 
@@ -88,7 +93,7 @@ Any OpenStack service supported by openstacksdk can be wired in this way with a 
 pytest -q
 ```
 
-The smoke suite verifies: the tool registry is non-empty and contains the expected OpenStack tools (and excludes non-OpenStack ones), no legacy router module is present, and the Kolla log backend resolves targets/parses request IDs correctly.
+The test suite covers registry assembly (tool set, domains, tiers), the list/show/update/delete factories, the delete-confirmation elicitation flow, and the Kolla log backend (target resolution, time-window tailing, request-ID extraction).
 
 ---
 

@@ -7,4 +7,4 @@ ENGINE="${ENGINE:-podman}"
   --env-file config.env \
   -v /var/log/kolla:/var/log/kolla:ro \
   openstack-mcp:latest \
-  python src/server.py --transport http --host 0.0.0.0
+  python -m core.server --transport http --host 0.0.0.0

@@ -32,7 +32,7 @@ export OS_AUTH_URL=https://keystone.example.com:5000/v3
 export OS_APPLICATION_CREDENTIAL_ID=<your-app-cred-id>
 export OS_APPLICATION_CREDENTIAL_SECRET=<your-app-cred-secret>
 
-python src/server.py --transport stdio
+PYTHONPATH=src python -m core.server --transport stdio
 ```
 
 Claude Desktop config (`claude_desktop_config.json`):
@@ -42,8 +42,10 @@ Claude Desktop config (`claude_desktop_config.json`):
   "mcpServers": {
     "openstack": {
       "command": "/path/to/.venv/bin/python",
-      "args": ["/path/to/OpenStack-MCP/src/server.py", "--transport", "stdio"],
+      "args": ["-m", "core.server", "--transport", "stdio"],
+      "cwd": "/path/to/OpenStack-MCP",
       "env": {
+        "PYTHONPATH": "/path/to/OpenStack-MCP/src",
         "OS_AUTH_URL": "https://keystone.example.com:5000/v3",
         "OS_APPLICATION_CREDENTIAL_ID": "...",
         "OS_APPLICATION_CREDENTIAL_SECRET": "..."
@@ -56,7 +58,7 @@ Claude Desktop config (`claude_desktop_config.json`):
 Or via the CLI:
 
 ```bash
-claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to/OpenStack-MCP/src/server.py
+claude mcp add --transport stdio openstack --env PYTHONPATH=/path/to/OpenStack-MCP/src -- /path/to/.venv/bin/python -m core.server
 ```
 
 ---
@@ -68,7 +70,7 @@ claude mcp add --transport stdio openstack -- /path/to/.venv/bin/python /path/to
 cp config.env.example config.env
 # Set OS_AUTH_URL, MCP_PORT, KOLLA_LOG_DIR, etc.
 
-python src/server.py --transport http --host 0.0.0.0 --port 8001
+PYTHONPATH=src python -m core.server --transport http --host 0.0.0.0 --port 8001
 ```
 
 Per-domain endpoints:
@@ -109,8 +111,8 @@ podman run --rm -p 8001:8001 \
 |---|---|---|
 | `MCP_PORT` | `8001` | HTTP listen port |
 | `OS_AUTH_URL` | `http://127.0.0.1:5000/v3` | Keystone endpoint (server default; overridable per-caller) |
-| `OSMCP_DOMAINS` | all | Comma-separated subset: `compute,network,lbaas,storage,image,identity,observability` |
-| `OSMCP_TIERS` | all | Comma-separated subset: `read,write,maintain` |
+| `MCP_DOMAINS` | all | Comma-separated subset: `compute,network,lbaas,storage,image,identity,observability` |
+| `MCP_TIERS` | all | Comma-separated subset: `read,write,maintain` |
 | `KOLLA_LOG_DIR` | `/var/log/kolla` | Root of Kolla service log directories |
 | `MCP_NODE_NAME` | hostname | Label identifying which node's logs are being served |
 | `MCP_ALLOWED_HOST_NAMES` | `localhost,127.0.0.1` | Comma-separated hostnames; each is suffixed with `:<MCP_PORT>` to form the Host-header allowlist. Set `MCP_ALLOWED_HOSTS` to override the full list directly. |
