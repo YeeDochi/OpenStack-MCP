@@ -1,0 +1,26 @@
+# secrets — working client config carries live credentials
+clients/.mcp.json
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# build artifacts
+dist/*.zip
+
+# local editor/agent settings
+.claude/settings.local.json
+
+# handoff-only quick installers carry baked-in secrets — never commit
+clients/install-client-quick.sh
+clients/install-client-quick.ps1
+
+# 배포별 실 설정 (예시 config.env.example만 커밋)
+config.env
+
+# 개발용 스크래치/probe — 커밋하지 않음 (로컬 전용)
+scripts/dev/
+
+# 로컬 작업 가이드 (개인/호스트 컨텍스트 — 커밋 안 함)
+CLAUDE.md
